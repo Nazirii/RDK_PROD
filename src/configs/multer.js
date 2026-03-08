@@ -2,15 +2,21 @@ const multer = require("multer");
 const path = require("path");
 const fileValidationService = require("../utils/FileValidationService");
 const fs = require("fs");
-const uploadDir = "uploads/gallery";
 
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+["uploads/gallery", "uploads/articles"].forEach((dir) => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+function getUploadDir(req) {
+  if (req.baseUrl?.includes("articles") || req.path?.includes("articles")) {
+    return "uploads/articles/";
+  }
+  return "uploads/gallery/";
 }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/gallery/"); 
+    cb(null, getUploadDir(req));
   },
   filename: (req, file, cb) => {
     const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;

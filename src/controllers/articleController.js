@@ -1,6 +1,7 @@
+const path = require("path");
+const fs = require("fs");
 const Article = require("../models/articleModel");
 const Category = require("../models/categoryModel");
-const base64FileService = require("../services/Base64FileService");
 
 // CREATE a new article (image opsional via multipart/form-data, field: 'image')
 exports.createArticle = async (req, res) => {
@@ -26,10 +27,13 @@ exports.createArticle = async (req, res) => {
 
     let image = null;
     if (req.file) {
-      image = base64FileService.processImageForStorage(req.file.buffer, {
+      image = {
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
-      });
+        fileExtension: path.extname(req.file.originalname),
+        fileSize: req.file.size,
+        filePath: req.file.path,
+      };
     }
 
     const newArticle = new Article({
@@ -54,10 +58,10 @@ exports.createArticle = async (req, res) => {
   }
 };
 
-// GET all articles — base64Data excluded to keep response size small
+// GET all articles
 exports.getAllArticles = async (req, res) => {
   try {
-    const articles = await Article.find({}, { "image.base64Data": 0 }).populate(
+    const articles = await Article.find().populate(
       "category",
       "name",
     );
@@ -111,17 +115,13 @@ exports.getArticleImage = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Article has no image" });
     }
-    const result = base64FileService.processImageForDisplay(
-      article.image.base64Data,
-      {
-        originalName: article.image.originalName,
-        mimeType: article.image.mimeType,
-        fileHash: article.image.fileHash,
-      },
-    );
-    res.set("Content-Type", result.mimeType);
-    res.set("Content-Disposition", `inline; filename="${result.originalName}"`);
-    res.send(result.fileBuffer);
+    const absolutePath = path.resolve(article.image.filePath);
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ success: false, message: "File tidak ditemukan di server" });
+    }
+    res.set("Content-Type", article.image.mimeType);
+    res.set("Content-Disposition", `inline; filename="${article.image.originalName}"`);
+    res.sendFile(absolutePath);
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -166,13 +166,19 @@ exports.updateArticle = async (req, res) => {
     };
     if (categoryId !== undefined) updateData.category = categoryId;
     if (req.file) {
-      updateData.image = base64FileService.processImageForStorage(
-        req.file.buffer,
-        {
-          originalName: req.file.originalname,
-          mimeType: req.file.mimetype,
-        },
-      );
+      // Hapus file lama dari disk
+      const oldArticle = await Article.findById(id);
+      if (oldArticle && oldArticle.image && oldArticle.image.filePath) {
+        const oldPath = path.resolve(oldArticle.image.filePath);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+      updateData.image = {
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        fileExtension: path.extname(req.file.originalname),
+        fileSize: req.file.size,
+        filePath: req.file.path,
+      };
     }
 
     const updatedArticle = await Article.findByIdAndUpdate(id, updateData, {
@@ -197,12 +203,18 @@ exports.updateArticle = async (req, res) => {
 exports.deleteArticle = async (req, res) => {
   try {
     const { id } = req.params;
-    const deletedArticle = await Article.findByIdAndDelete(id);
-    if (!deletedArticle) {
+    const article = await Article.findById(id);
+    if (!article) {
       return res
         .status(404)
         .json({ success: false, message: "Article not found" });
     }
+    // Hapus file dari disk
+    if (article.image && article.image.filePath) {
+      const absPath = path.resolve(article.image.filePath);
+      if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
+    }
+    await Article.findByIdAndDelete(id);
     res
       .status(200)
       .json({ success: true, message: "Article deleted successfully" });

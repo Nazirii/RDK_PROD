@@ -7,8 +7,7 @@ const imageSchema = new Schema(
     mimeType: { type: String, required: true },
     fileExtension: { type: String, required: true },
     fileSize: { type: Number, required: true },
-    base64Data: { type: String, required: true },
-    fileHash: { type: String, required: true },
+    filePath: { type: String, required: true },
   },
   { _id: false },
 );
