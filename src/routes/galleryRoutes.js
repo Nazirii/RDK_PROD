@@ -33,6 +33,9 @@ router.post(
   galleryController.addImages,
 );
 
+// DELETE a single image from a gallery by index
+router.delete("/galleries/:id/images/:index", galleryController.deleteImage);
+
 // DELETE a gallery record by ID
 router.delete("/galleries/:id", galleryController.deleteGallery);
 

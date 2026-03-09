@@ -36,11 +36,6 @@ exports.createGallery = async (req, res) => {
 exports.getAllGalleries = async (req, res) => {
   try {
     const galleries = await Gallery.find();
-    if (galleries.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "No gallery records found" });
-    }
     res.status(200).json({ success: true, data: galleries });
   } catch (error) {
     res.status(500).json({
@@ -192,6 +187,49 @@ exports.addImages = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error adding images to gallery",
+      error: error.message,
+    });
+  }
+};
+
+// DELETE a single image from a gallery by index
+exports.deleteImage = async (req, res) => {
+  try {
+    const { id, index } = req.params;
+    const imgIndex = parseInt(index, 10);
+    const gallery = await Gallery.findById(id);
+    if (!gallery) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Gallery record not found" });
+    }
+    if (isNaN(imgIndex) || imgIndex < 0 || imgIndex >= gallery.images.length) {
+      return res.status(400).json({
+        success: false,
+        message: `Index tidak valid. Tersedia index 0 sampai ${gallery.images.length - 1}.`,
+      });
+    }
+
+    // Hapus file dari disk
+    const imageDoc = gallery.images[imgIndex];
+    const absPath = path.resolve(imageDoc.filePath);
+    if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
+
+    // Hapus dari array
+    gallery.images.splice(imgIndex, 1);
+
+    // Jika tidak ada gambar lagi, hapus dokumen galeri
+    if (gallery.images.length === 0) {
+      await Gallery.findByIdAndDelete(id);
+      return res.status(200).json({ success: true, message: "Image deleted. Gallery removed (no images left)." });
+    }
+
+    const saved = await gallery.save();
+    res.status(200).json({ success: true, data: saved });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error deleting image from gallery",
       error: error.message,
     });
   }
