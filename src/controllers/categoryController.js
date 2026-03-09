@@ -4,8 +4,8 @@ const Article = require("../models/articleModel");
 // CREATE a new category
 exports.createCategory = async (req, res) => {
   try {
-    const { name } = req.body;
-    const newCategory = new Category({ name });
+    const { name, type } = req.body;
+    const newCategory = new Category({ name, type: type || "Article" });
     const savedCategory = await newCategory.save();
     res.status(201).json({ success: true, data: savedCategory });
   } catch (error) {
@@ -20,7 +20,9 @@ exports.createCategory = async (req, res) => {
 // GET all categories
 exports.getAllCategories = async (req, res) => {
   try {
-    const categories = await Category.find();
+    const filter = {};
+    if (req.query.type) filter.type = req.query.type;
+    const categories = await Category.find(filter);
     if (categories.length === 0) {
       return res
         .status(404)

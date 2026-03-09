@@ -3,6 +3,7 @@ const Schema = mongoose.Schema;
 
 const categorySchema = new Schema({
     name: { type: String, required: true, unique: true },
+    type: { type: String, enum: ["Article", "Gallery"], default: "Article" },
 },
 { timestamps: true });
 
