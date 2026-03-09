@@ -26,6 +26,13 @@ router.put(
   galleryController.updateGallery,
 );
 
+// ADD images to an existing gallery (append)
+router.post(
+  "/galleries/:id/images",
+  upload.array("images"),
+  galleryController.addImages,
+);
+
 // DELETE a gallery record by ID
 router.delete("/galleries/:id", galleryController.deleteGallery);
 

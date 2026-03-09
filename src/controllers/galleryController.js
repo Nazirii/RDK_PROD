@@ -160,6 +160,43 @@ exports.updateGallery = async (req, res) => {
   }
 };
 
+// ADD images to an existing gallery (append, don't replace)
+exports.addImages = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const gallery = await Gallery.findById(id);
+    if (!gallery) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Gallery record not found" });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "No images provided" });
+    }
+
+    const newImages = req.files.map((file) => ({
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      fileExtension: path.extname(file.originalname),
+      fileSize: file.size,
+      filePath: file.path,
+    }));
+
+    gallery.images.push(...newImages);
+    const saved = await gallery.save();
+    res.status(200).json({ success: true, data: saved });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error adding images to gallery",
+      error: error.message,
+    });
+  }
+};
+
 // DELETE a gallery record by ID — hapus file dari disk juga
 exports.deleteGallery = async (req, res) => {
   try {
