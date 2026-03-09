@@ -1,0 +1,159 @@
+[1mdiff --git a/src/configs/multer.js b/src/configs/multer.js[m
+[1mindex c0c5f34..eeb07c1 100644[m
+[1m--- a/src/configs/multer.js[m
+[1m+++ b/src/configs/multer.js[m
+[36m@@ -2,21 +2,15 @@[m [mconst multer = require("multer");[m
+ const path = require("path");[m
+ const fileValidationService = require("../utils/FileValidationService");[m
+ const fs = require("fs");[m
+[32m+[m[32mconst uploadDir = "uploads/gallery";[m
+ [m
+[31m-["uploads/gallery", "uploads/articles"].forEach((dir) => {[m
+[31m-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });[m
+[31m-});[m
+[31m-[m
+[31m-function getUploadDir(req) {[m
+[31m-  if (req.baseUrl?.includes("articles") || req.path?.includes("articles")) {[m
+[31m-    return "uploads/articles/";[m
+[31m-  }[m
+[31m-  return "uploads/gallery/";[m
+[32m+[m[32mif (!fs.existsSync(uploadDir)) {[m
+[32m+[m[32m  fs.mkdirSync(uploadDir, { recursive: true });[m
+ }[m
+ [m
+ const storage = multer.diskStorage({[m
+   destination: (req, file, cb) => {[m
+[31m-    cb(null, getUploadDir(req));[m
+[32m+[m[32m    cb(null, "uploads/gallery/");[m[41m [m
+   },[m
+   filename: (req, file, cb) => {[m
+     const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;[m
+[1mdiff --git a/src/controllers/articleController.js b/src/controllers/articleController.js[m
+[1mindex 4f4a885..22aa3c5 100644[m
+[1m--- a/src/controllers/articleController.js[m
+[1m+++ b/src/controllers/articleController.js[m
+[36m@@ -1,7 +1,6 @@[m
+[31m-const path = require("path");[m
+[31m-const fs = require("fs");[m
+ const Article = require("../models/articleModel");[m
+ const Category = require("../models/categoryModel");[m
+[32m+[m[32mconst base64FileService = require("../services/Base64FileService");[m
+ [m
+ // CREATE a new article (image opsional via multipart/form-data, field: 'image')[m
+ exports.createArticle = async (req, res) => {[m
+[36m@@ -27,13 +26,10 @@[m [mexports.createArticle = async (req, res) => {[m
+ [m
+     let image = null;[m
+     if (req.file) {[m
+[31m-      image = {[m
+[32m+[m[32m      image = base64FileService.processImageForStorage(req.file.buffer, {[m
+         originalName: req.file.originalname,[m
+         mimeType: req.file.mimetype,[m
+[31m-        fileExtension: path.extname(req.file.originalname),[m
+[31m-        fileSize: req.file.size,[m
+[31m-        filePath: req.file.path,[m
+[31m-      };[m
+[32m+[m[32m      });[m
+     }[m
+ [m
+     const newArticle = new Article({[m
+[36m@@ -58,10 +54,10 @@[m [mexports.createArticle = async (req, res) => {[m
+   }[m
+ };[m
+ [m
+[31m-// GET all articles[m
+[32m+[m[32m// GET all articles — base64Data excluded to keep response size small[m
+ exports.getAllArticles = async (req, res) => {[m
+   try {[m
+[31m-    const articles = await Article.find().populate([m
+[32m+[m[32m    const articles = await Article.find({}, { "image.base64Data": 0 }).populate([m
+       "category",[m
+       "name",[m
+     );[m
+[36m@@ -115,13 +111,17 @@[m [mexports.getArticleImage = async (req, res) => {[m
+         .status(404)[m
+         .json({ success: false, message: "Article has no image" });[m
+     }[m
+[31m-    const absolutePath = path.resolve(article.image.filePath);[m
+[31m-    if (!fs.existsSync(absolutePath)) {[m
+[31m-      return res.status(404).json({ success: false, message: "File tidak ditemukan di server" });[m
+[31m-    }[m
+[31m-    res.set("Content-Type", article.image.mimeType);[m
+[31m-    res.set("Content-Disposition", `inline; filename="${article.image.originalName}"`);[m
+[31m-    res.sendFile(absolutePath);[m
+[32m+[m[32m    const result = base64FileService.processImageForDisplay([m
+[32m+[m[32m      article.image.base64Data,[m
+[32m+[m[32m      {[m
+[32m+[m[32m        originalName: article.image.originalName,[m
+[32m+[m[32m        mimeType: article.image.mimeType,[m
+[32m+[m[32m        fileHash: article.image.fileHash,[m
+[32m+[m[32m      },[m
+[32m+[m[32m    );[m
+[32m+[m[32m    res.set("Content-Type", result.mimeType);[m
+[32m+[m[32m    res.set("Content-Disposition", `inline; filename="${result.originalName}"`);[m
+[32m+[m[32m    res.send(result.fileBuffer);[m
+   } catch (error) {[m
+     res.status(500).json({[m
+       success: false,[m
+[36m@@ -166,19 +166,13 @@[m [mexports.updateArticle = async (req, res) => {[m
+     };[m
+     if (categoryId !== undefined) updateData.category = categoryId;[m
+     if (req.file) {[m
+[31m-      // Hapus file lama dari disk[m
+[31m-      const oldArticle = await Article.findById(id);[m
+[31m-      if (oldArticle && oldArticle.image && oldArticle.image.filePath) {[m
+[31m-        const oldPath = path.resolve(oldArticle.image.filePath);[m
+[31m-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);[m
+[31m-      }[m
+[31m-      updateData.image = {[m
+[31m-        originalName: req.file.originalname,[m
+[31m-        mimeType: req.file.mimetype,[m
+[31m-        fileExtension: path.extname(req.file.originalname),[m
+[31m-        fileSize: req.file.size,[m
+[31m-        filePath: req.file.path,[m
+[31m-      };[m
+[32m+[m[32m      updateData.image = base64FileService.processImageForStorage([m
+[32m+[m[32m        req.file.buffer,[m
+[32m+[m[32m        {[m
+[32m+[m[32m          originalName: req.file.originalname,[m
+[32m+[m[32m          mimeType: req.file.mimetype,[m
+[32m+[m[32m        },[m
+[32m+[m[32m      );[m
+     }[m
+ [m
+     const updatedArticle = await Article.findByIdAndUpdate(id, updateData, {[m
+[36m@@ -203,18 +197,12 @@[m [mexports.updateArticle = async (req, res) => {[m
+ exports.deleteArticle = async (req, res) => {[m
+   try {[m
+     const { id } = req.params;[m
+[31m-    const article = await Article.findById(id);[m
+[31m-    if (!article) {[m
+[32m+[m[32m    const deletedArticle = await Article.findByIdAndDelete(id);[m
+[32m+[m[32m    if (!deletedArticle) {[m
+       return res[m
+         .status(404)[m
+         .json({ success: false, message: "Article not found" });[m
+     }[m
+[31m-    // Hapus file dari disk[m
+[31m-    if (article.image && article.image.filePath) {[m
+[31m-      const absPath = path.resolve(article.image.filePath);[m
+[31m-      if (fs.existsSync(absPath)) fs.unlinkSync(absPath);[m
+[31m-    }[m
+[31m-    await Article.findByIdAndDelete(id);[m
+     res[m
+       .status(200)[m
+       .json({ success: true, message: "Article deleted successfully" });[m
+[1mdiff --git a/src/models/articleModel.js b/src/models/articleModel.js[m
+[1mindex 35610d9..a6fcc45 100644[m
+[1m--- a/src/models/articleModel.js[m
+[1m+++ b/src/models/articleModel.js[m
+[36m@@ -7,7 +7,8 @@[m [mconst imageSchema = new Schema([m
+     mimeType: { type: String, required: true },[m
+     fileExtension: { type: String, required: true },[m
+     fileSize: { type: Number, required: true },[m
+[31m-    filePath: { type: String, required: true },[m
+[32m+[m[32m    base64Data: { type: String, required: true },[m
+[32m+[m[32m    fileHash: { type: String, required: true },[m
+   },[m
+   { _id: false },[m
+ );[m
