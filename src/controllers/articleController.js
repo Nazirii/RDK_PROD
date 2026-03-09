@@ -32,7 +32,7 @@ exports.createArticle = async (req, res) => {
         mimeType: req.file.mimetype,
         fileExtension: path.extname(req.file.originalname),
         fileSize: req.file.size,
-        filePath: req.file.path,
+        filePath: '/' + req.file.path.replace(/\\/g, '/'),
       };
     }
 
@@ -177,7 +177,7 @@ exports.updateArticle = async (req, res) => {
         mimeType: req.file.mimetype,
         fileExtension: path.extname(req.file.originalname),
         fileSize: req.file.size,
-        filePath: req.file.path,
+        filePath: '/' + req.file.path.replace(/\\/g, '/'),
       };
     }
 
