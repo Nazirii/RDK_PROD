@@ -6,6 +6,8 @@ const upload = require("../configs/multer");
 // CREATE a new gallery record (multipart/form-data, field gambar: 'images')
 router.post(
   "/galleries",
+  verifyToken,
+  isAdmin,
   upload.array("images"),
   galleryController.createGallery,
 );
@@ -22,6 +24,8 @@ router.get("/galleries/:id/image/:index", galleryController.getGalleryImage);
 // UPDATE a gallery record by ID (images opsional)
 router.put(
   "/galleries/:id",
+  verifyToken,
+  isAdmin,
   upload.array("images"),
   galleryController.updateGallery,
 );
@@ -29,14 +33,26 @@ router.put(
 // ADD images to an existing gallery (append)
 router.post(
   "/galleries/:id/images",
+  verifyToken,
+  isAdmin,
   upload.array("images"),
   galleryController.addImages,
 );
 
 // DELETE a single image from a gallery by index
-router.delete("/galleries/:id/images/:index", galleryController.deleteImage);
+router.delete(
+  "/galleries/:id/images/:index",
+  verifyToken,
+  isAdmin,
+  galleryController.deleteImage,
+);
 
 // DELETE a gallery record by ID
-router.delete("/galleries/:id", galleryController.deleteGallery);
+router.delete(
+  "/galleries/:id",
+  verifyToken,
+  isAdmin,
+  galleryController.deleteGallery,
+);
 
 module.exports = router;

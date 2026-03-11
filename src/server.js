@@ -9,6 +9,7 @@ const articleRoutes = require("./routes/articleRoute");
 const categoryRoutes = require("./routes/categoryRoute");
 const donationRoutes = require("./routes/donationRoutes");
 const galleryRoutes = require("./routes/galleryRoutes");
+const authRoutes = require("../src/routes/authRoutes");
 
 process.env.TZ = "Asia/Jakarta";
 
@@ -19,6 +20,7 @@ app.use(articleRoutes);
 app.use(categoryRoutes);
 app.use(donationRoutes);
 app.use(galleryRoutes);
+app.use(authRoutes);
 
 const multer = require("multer");
 app.use((err, req, res, next) => {
